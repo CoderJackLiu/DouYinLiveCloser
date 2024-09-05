@@ -136,9 +136,7 @@ def bring_window_to_front():
             print(f"鼠标目标位置: X={rect.right + hor_offset}, Y={rect.top + ver_offset}")
 
             # 使用贝塞尔曲线平滑移动鼠标
-            smooth_move_bezier(mouse.position[0], mouse.position[1], rect.right + hor_offset, rect.top + ver_offset,
-                               duration=1.5,
-                               steps=100)
+            smooth_move_bezier(mouse.position[0], mouse.position[1], rect.right + hor_offset, rect.top + ver_offset,duration=1.5,steps=100)
 
             # 停顿一秒
             time.sleep(1)
