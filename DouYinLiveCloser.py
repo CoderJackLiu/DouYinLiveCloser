@@ -1,18 +1,57 @@
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
+
+import pyautogui
 import pygetwindow as gw
 from pywinauto.application import Application
-import pyautogui
 import warnings
 from datetime import datetime, timedelta
 import time
+from pynput.mouse import Controller, Button  # 引入 pynput
+import random
 
 # 忽略 32 位和 64 位不匹配的警告
 warnings.filterwarnings("ignore", category=UserWarning)
 
+# 创建鼠标控制器实例
+mouse = Controller()
+
 # 创建全局变量用于倒计时
 target_time = None
+
+# 预设倒计时时间
+preset_time = 1
+
+# 水平偏移和垂直偏移
+hor_offset = -20
+ver_offset = 20
+
+
+# hor_offset = -5
+# ver_offset = -100
+
+
+# 贝塞尔曲线函数
+def bezier_curve(p0, p1, p2, t):
+    """ 计算贝塞尔曲线的中间点 """
+    return (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2
+
+
+def smooth_move_bezier(start_x, start_y, target_x, target_y, duration=1.5, steps=100):
+    """ 使用贝塞尔曲线平滑地移动鼠标 """
+    # 生成贝塞尔曲线的控制点，加入随机偏移让移动轨迹更加自然
+    control_x = (start_x + target_x) / 2 + random.randint(-100, 100)
+    control_y = (start_y + target_y) / 2 + random.randint(-100, 100)
+
+    step_delay = duration / steps
+
+    for i in range(steps + 1):
+        t = i / steps
+        new_x = bezier_curve(start_x, control_x, target_x, t)
+        new_y = bezier_curve(start_y, control_y, target_y, t)
+        mouse.position = (new_x, new_y)
+        time.sleep(step_delay)
 
 
 def move_mouse_with_retry(target_x, target_y, retries):
@@ -25,16 +64,16 @@ def move_mouse_with_retry(target_x, target_y, retries):
     """
     for attempt in range(retries):
         # 移动鼠标到目标位置
-        pyautogui.moveTo(target_x, target_y)
+        mouse.position = (target_x, target_y)
 
         # 获取当前鼠标的位置
-        current_x, current_y = pyautogui.position()
+        current_x, current_y = mouse.position
 
         # 打印当前鼠标位置和目标位置
         print(f"重试 {attempt + 1}: 当前鼠标位置: X={current_x}, Y={current_y}，目标: X={target_x}, Y={target_y}")
 
         # 检查是否已经到达目标位置
-        if current_x == target_x and current_y == target_y:
+        if int(current_x) == target_x and int(current_y) == target_y:
             print("鼠标已到达目标位置")
             return
 
@@ -66,7 +105,7 @@ def list_window_titles():
 
 
 def SetMousePosition():
-    pyautogui.moveTo(3192, 640)
+    mouse.position = (3192, 640)
 
 
 def bring_window_to_front():
@@ -87,26 +126,25 @@ def bring_window_to_front():
             win = app.window(handle=handle)
             win.set_focus()  # 将窗口置于前台并聚焦
 
+            # mouse.click(Button.right)
+
             # 获取窗口位置并将鼠标移动到窗口的右上角，向左和向下偏移 20 像素
             rect = win.rectangle()
-            # 停顿一秒
-            time.sleep(1)
+            time.sleep(0.2)
 
             # 打印鼠标需要移动到的目标位置
-            print(f"鼠标目标位置: X={rect.right - 20}, Y={rect.top + 20}")
-            pyautogui.moveTo(rect.right - 20, rect.top + 20)
-            time.sleep(1)
+            print(f"鼠标目标位置: X={rect.right + hor_offset}, Y={rect.top + ver_offset}")
 
-            # 调用封装的移动函数，重试10次
-            move_mouse_with_retry(rect.right - 20, rect.top + 20, retries=10)
-
-            # pyautogui.moveTo(rect.right - 20, rect.top + 20)
+            # 使用贝塞尔曲线平滑移动鼠标
+            smooth_move_bezier(mouse.position[0], mouse.position[1], rect.right + hor_offset, rect.top + ver_offset,
+                               duration=1.5,
+                               steps=100)
 
             # 停顿一秒
             time.sleep(1)
 
             # 模拟鼠标点击
-            pyautogui.click()
+            mouse.click(Button.left)
 
         except Exception as e:
             # 只有在发生错误时弹出错误信息
@@ -136,7 +174,7 @@ def validate_time():
 def set_five_seconds_countdown():
     global target_time
     now = datetime.now()
-    target_time = now + timedelta(seconds=2)  # 设置目标时间为当前时间加5秒
+    target_time = now + timedelta(seconds=preset_time)  # 设置目标时间为当前时间加5秒
     countdown_label.config(text=f"目标时间: {target_time.strftime('%Y-%m-%d %H:%M:%S')}")
     update_countdown()  # 启动倒计时
 
@@ -158,11 +196,11 @@ def update_countdown():
 # 添加打印鼠标位置的函数
 def print_mouse_position():
     # 获取鼠标当前位置
-    mouse_x, mouse_y = pyautogui.position()
+    mouse_x, mouse_y = mouse.position
     print(f"当前鼠标位置: X={mouse_x}, Y={mouse_y}")
 
     # 每隔500毫秒调用一次自己
-    root.after(500, print_mouse_position)
+    # root.after(500, print_mouse_position)
 
 
 # 获取当前日期和时间
@@ -254,9 +292,6 @@ set_five_seconds_button.pack(pady=10)
 # 添加倒计时显示标签
 countdown_label = tk.Label(root, text="未设置倒计时", font=("Arial", 24))
 countdown_label.pack(pady=20)
-
-pyautogui.FAILSAFE = False
-pyautogui.FAILSAFE_POINTS = [(1, 1)]
 
 # 初始化时，刷新一次窗口列表
 list_window_titles()
