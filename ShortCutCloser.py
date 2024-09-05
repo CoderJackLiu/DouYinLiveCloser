@@ -5,17 +5,18 @@ import sys
 import os
 from datetime import datetime, timedelta
 import time
-from pynput.keyboard import Controller, Key
+from pynput.mouse import Button, Controller
 import pygetwindow as gw
 from pywinauto.application import Application
 
-# 创建键盘控制器实例
-keyboard = Controller()
+# 创建鼠标控制器实例
+mouse = Controller()
 
 # 全局变量
 target_time = None
-# active_windows = ["直播伴侣", "超级鼠标连点器"]
 active_windows = ["直播伴侣"]
+horizontal_offset = 0  # 水平偏移
+vertical_offset = 0  # 垂直偏移
 
 
 # 检查管理员权限
@@ -29,16 +30,14 @@ def is_admin():
 # 提示用户是否重新启动为管理员权限
 def request_admin_permission():
     if not is_admin():
-        # 弹出确认对话框
         result = messagebox.askyesno("需要管理员权限", "此操作需要管理员权限，是否重新启动为管理员？")
         if result:
-            # 如果用户选择了 "是"，重新启动并请求管理员权限
             ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
             sys.exit()
 
 
-# 激活指定窗口
-def activate_windows():
+# 激活指定窗口并移动鼠标到窗口底部中间位置，带偏移
+def activate_windows_and_move_mouse():
     for window_name in active_windows:
         windows = gw.getWindowsWithTitle(window_name)
         if windows:
@@ -48,15 +47,31 @@ def activate_windows():
                 win = app.window(handle=window._hWnd)
                 win.set_focus()
                 time.sleep(0.2)  # 短暂停顿
+
+                # 获取窗口的位置矩形
+                rect = win.rectangle()
+
+                # 计算窗口底部中间位置并应用偏移
+                center_x = rect.left + (rect.right - rect.left) // 2
+                center_y = rect.bottom
+
+                # 打印vertical_offset horizontal_offset
+                print(f"打印vertical_offset horizontal_offset:水平偏移={horizontal_offset}, 垂直偏移={vertical_offset}")
+
+                center_x += horizontal_offset
+                center_y += vertical_offset
+
+                # 将鼠标移动到窗口底部中间位置
+                print(f"鼠标移动到窗口底部中间位置: X={center_x}, Y={center_y}")
+                mouse.position = (center_x, center_y)
+                time.sleep(0.5)  # 停顿一小段时间
+
+                # 执行鼠标右键点击
+                mouse.press(Button.left)  # 右键点击
+                time.sleep(0.5)
+                mouse.release(Button.left)
             except Exception as e:
                 print(f"无法激活窗口 {window_name}: {e}")
-
-
-# 执行 F8 快捷键
-def execute_f8():
-    activate_windows()
-    keyboard.press(Key.f8)
-    keyboard.release(Key.f8)
 
 
 # 倒计时逻辑
@@ -67,7 +82,7 @@ def start_countdown():
     countdown_button.config(state=tk.DISABLED)
 
     if remaining_time.total_seconds() <= 0:
-        execute_f8()
+        activate_windows_and_move_mouse()
     else:
         for i in range(int(remaining_time.total_seconds()), 0, -1):
             countdown_label.config(text=f"倒计时: {i}s")
@@ -75,7 +90,7 @@ def start_countdown():
             time.sleep(1)
 
         countdown_label.config(text="任务执行完毕")
-        execute_f8()
+        activate_windows_and_move_mouse()
 
     countdown_button.config(state=tk.NORMAL)
 
@@ -106,10 +121,32 @@ def validate_and_start_countdown():
         start_countdown()
 
 
+# 更新水平偏移值
+def update_horizontal_offset(*args):
+    global horizontal_offset
+    horizontal_offset = int(horizontal_offset_var.get())
+
+
+# 更新垂直偏移值
+def update_vertical_offset(*args):
+    global vertical_offset
+    vertical_offset = int(vertical_offset_var.get())
+
+
+# 添加打印鼠标位置的函数
+def print_mouse_position():
+    # 获取鼠标当前位置
+    mouse_x, mouse_y = mouse.position
+    print(f"当前鼠标位置: X={mouse_x}, Y={mouse_y}")
+
+    # 每隔1000毫秒调用一次自己
+    root.after(1000, print_mouse_position)
+
+
 # 创建主窗口
 root = tk.Tk()
 root.title("倒计时执行任务")
-root.geometry("400x400")
+root.geometry("400x500")
 
 # 检查并请求管理员权限
 request_admin_permission()
@@ -162,6 +199,30 @@ minute_combobox = ttk.Combobox(time_frame, textvariable=minute_var, values=[f"{i
 minute_combobox.pack(side='left')
 minute_combobox.set(datetime.now().strftime("%M"))
 
+# 偏移设置部分
+offset_frame = tk.Frame(root)
+offset_frame.pack(pady=10)
+
+# 创建偏移量的变量
+horizontal_offset_var = tk.StringVar(value="0")
+vertical_offset_var = tk.StringVar(value="0")
+
+# 追踪偏移量的变化
+horizontal_offset_var.trace_add("write", update_horizontal_offset)
+vertical_offset_var.trace_add("write", update_vertical_offset)
+
+# 水平偏移设置
+horizontal_offset_label = tk.Label(offset_frame, text="关播按钮水平偏移:")
+horizontal_offset_label.pack(side='left', padx=5)
+horizontal_offset_spinbox = tk.Spinbox(offset_frame, from_=-500, to=500, textvariable=horizontal_offset_var, width=5)
+horizontal_offset_spinbox.pack(side='left', padx=5)
+
+# 垂直偏移设置
+vertical_offset_label = tk.Label(offset_frame, text="关播按钮垂直偏移:")
+vertical_offset_label.pack(side='left', padx=5)
+vertical_offset_spinbox = tk.Spinbox(offset_frame, from_=-500, to=500, textvariable=vertical_offset_var, width=5)
+vertical_offset_spinbox.pack(side='left', padx=5)
+
 # 添加倒计时1秒按钮
 one_second_button = tk.Button(root, text="倒计时1秒", command=set_one_second_countdown, font=("Arial", 12))
 one_second_button.pack(pady=10)
@@ -173,6 +234,9 @@ countdown_button.pack(pady=10)
 # 显示倒计时标签
 countdown_label = tk.Label(root, text="请选择时间或点击倒计时1秒", font=("Arial", 16))
 countdown_label.pack(pady=20)
+
+# 在主循环启动之前，调用这个函数来开始定时打印
+print_mouse_position()
 
 # 启动主循环
 root.mainloop()
