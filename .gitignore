@@ -1,1 +1,5 @@
 /.idea
+/dist
+/build
+/SmartDouYinLiveManager.spec
+/offset_config.json
