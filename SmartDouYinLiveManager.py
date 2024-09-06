@@ -66,6 +66,19 @@ def request_admin_permission():
             ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
             sys.exit()
 
+# 贝塞尔曲线函数
+def bezier_curve(p0, p1, p2, t):
+    return (1-t)**2 * p0 + 2*(1-t)*t * p1 + t**2 * p2
+
+# 平滑地移动鼠标
+def move_mouse_smoothly(start_pos, end_pos, control_point, duration=1.0, steps=100):
+    for i in range(steps):
+        t = i / steps
+        x = bezier_curve(start_pos[0], control_point[0], end_pos[0], t)
+        y = bezier_curve(start_pos[1], control_point[1], end_pos[1], t)
+        mouse.position = (x, y)
+        time.sleep(duration / steps)
+
 # 模拟鼠标左键按下和释放
 def simulate_left_click():
     mouse.press(Button.left)
@@ -76,6 +89,8 @@ def simulate_left_click():
 def activate_windows_and_move_mouse():
     selected_window = window_combobox.get()
 
+    # 打印窗口名称
+    print(f"选择的窗口: {selected_window}")
     windows = gw.getWindowsWithTitle(selected_window)
     if windows:
         try:
@@ -83,36 +98,30 @@ def activate_windows_and_move_mouse():
             app = Application(backend="win32").connect(handle=window._hWnd)
             win = app.window(handle=window._hWnd)
             win.set_focus()
-            time.sleep(0.2)  # 短暂停顿
+            win.minimize()  # 先最小化
+            win.restore()   # 再还原以置顶窗口
+            time.sleep(0.2)
 
             # 获取窗口的位置矩形
             rect = win.rectangle()
 
-            # 计算窗口底部中间位置并应用偏移
-            center_x = rect.left + (rect.right - rect.left) // 2
-            center_y = rect.bottom
+            # 计算鼠标的起始点、关播按钮终点和控制点
+            start_pos = mouse.position
+            end_pos = (rect.left + (rect.right - rect.left) // 2 + horizontal_offset_close, rect.bottom + vertical_offset_close)
+            control_point = ((start_pos[0] + end_pos[0]) // 2, start_pos[1] - 100)
 
-            # 打印vertical_offset horizontal_offset
-            print(f"关播按钮偏移:水平偏移={horizontal_offset_close}, 垂直偏移={vertical_offset_close}")
+            # 平滑移动到“关播”按钮
+            move_mouse_smoothly(start_pos, end_pos, control_point)
 
-            center_x += horizontal_offset_close
-            center_y += vertical_offset_close
-
-            # 将鼠标移动到窗口底部中间位置
-            print(f"鼠标移动到窗口底部中间位置: X={center_x}, Y={center_y}")
-            mouse.position = (center_x, center_y)
-            time.sleep(0.5)  # 停顿一小段时间
-
-            # 模拟鼠标左键点击
+            # 模拟鼠标点击
             simulate_left_click()
 
-            time.sleep(2)  # 停顿一小段时间
+            time.sleep(2)  # 暂停一段时间再进行确认按钮的操作
 
-            # 模拟确认窗口
+            # 平滑移动到确认按钮
             simulate_confirmation(win)
 
         except Exception as e:
-            print(f"无法激活窗口 {selected_window}: {e}")
             messagebox.showerror("激活失败", f"无法激活窗口 {selected_window}: {e}")
     else:
         messagebox.showerror("激活失败", f"未找到窗口: {selected_window}")
@@ -122,22 +131,15 @@ def simulate_confirmation(window):
     # 获取窗口的位置矩形
     rect = window.rectangle()
 
-    # 计算窗口中间位置并应用偏移
-    center_x = rect.left + (rect.right - rect.left) // 2
-    center_y = rect.top + (rect.bottom - rect.top) // 2
+    # 计算鼠标的起始点、确认按钮终点和控制点
+    start_pos = mouse.position
+    end_pos = (rect.left + (rect.right - rect.left) // 2 + horizontal_offset_confirm, rect.top + (rect.bottom - rect.top) // 2 + vertical_offset_confirm)
+    control_point = ((start_pos[0] + end_pos[0]) // 2, start_pos[1] - 100)
 
-    # 打印确认按钮的偏移
-    print(f"确认按钮偏移:水平偏移={horizontal_offset_confirm}, 垂直偏移={vertical_offset_confirm}")
+    # 平滑移动到确认按钮
+    move_mouse_smoothly(start_pos, end_pos, control_point)
 
-    center_x += horizontal_offset_confirm
-    center_y += vertical_offset_confirm
-
-    # 将鼠标移动到确认窗口中间位置
-    print(f"鼠标移动到确认按钮位置: X={center_x}, Y={center_y}")
-    mouse.position = (center_x, center_y)
-    time.sleep(0.5)
-
-    # 模拟鼠标左键点击
+    # 模拟鼠标点击
     simulate_left_click()
 
 # 倒计时逻辑
@@ -282,14 +284,14 @@ def update_vertical_offset_confirm(*args):
     config["vertical_offset_confirm"] = vertical_offset_confirm
     save_config(config)
 
-# 创建主窗口
-root = tk.Tk()
-root.title(f"直播伴侣自动关播工具V{version}")
-root.geometry("450x600")
-root.minsize(width=450, height=600)
-
 # 检查并请求管理员权限
 request_admin_permission()
+
+# 创建主窗口
+root = tk.Tk()
+root.title(f"直播自动关播工具V{version}")
+root.geometry("450x600")
+root.minsize(width=450, height=600)
 
 # 窗口选择部分
 window_frame = tk.Frame(root)
