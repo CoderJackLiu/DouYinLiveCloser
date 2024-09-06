@@ -284,7 +284,7 @@ def update_vertical_offset_confirm(*args):
 
 # 创建主窗口
 root = tk.Tk()
-root.title(f"深锶-直播伴侣自动关播工具V{version}")
+root.title(f"直播伴侣自动关播工具V{version}")
 root.geometry("450x600")
 root.minsize(width=450, height=600)
 
